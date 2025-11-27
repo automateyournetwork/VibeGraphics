@@ -360,9 +360,6 @@ def veo_generate_video(
       seed: Optional seed for slight determinism bump.
       poll_seconds: Poll frequency for the operation.
       max_wait_seconds: Max total wait time.
-
-    Returns:
-      {ok, paths, model, seconds_waited, image_used, aspect_ratio, resolution, seed}
     """
     if genai is None or gtypes is None or mimetypes is None:
         return {"ok": False, "error": "google-genai not installed"}
@@ -393,6 +390,7 @@ def veo_generate_video(
         seed=seed,
     )
 
+    # Start the operation
     try:
         op = client.models.generate_videos(
             model=model,
@@ -403,6 +401,7 @@ def veo_generate_video(
     except Exception as e:
         return {"ok": False, "error": f"veo start failed: {e}"}
 
+    # Poll until finished
     waited = 0
     try:
         while not op.done:
@@ -410,24 +409,34 @@ def veo_generate_video(
                 return {"ok": False, "error": f"timeout after {max_wait_seconds}s"}
             time.sleep(max(1, int(poll_seconds)))
             waited += poll_seconds
-            op = client.operations.get(op)
+            # In the new client, you pass the operation's name to get status
+            op = client.operations.get(op.name)
     except Exception as e:
         return {"ok": False, "error": f"veo poll failed: {e}"}
 
+    # Grab generated videos
     vids = getattr(op.response, "generated_videos", []) or []
     if not vids:
         return {"ok": False, "error": "no videos in response"}
 
     saved: List[str] = []
     for idx, gv in enumerate(vids):
-        ts = time.strftime("%Y%m%d_%H%M%S")
-        ms = int((time.time() % 1) * 1000)
-        fpath = out_dir_p / f"veo_{ts}_{ms:03d}_{idx:02d}.mp4"
         try:
-            gv.video.save(str(fpath))
+            # Download the remote video file
+            dl = client.files.download(file=gv.video)
+            data = dl.read()  # file-like object
+
+            ts = time.strftime("%Y%m%d_%H%M%S")
+            ms = int((time.time() % 1) * 1000)
+            fpath = out_dir_p / f"veo_{ts}_{ms:03d}_{idx:02d}.mp4"
+
+            with open(fpath, "wb") as f:
+                f.write(data)
+
+            saved.append(str(fpath))
+            log.info("Veo video saved: %s", fpath)
         except Exception as e:
             return {"ok": False, "error": f"failed to save video: {e}"}
-        saved.append(str(fpath))
 
     return {
         "ok": True,
@@ -439,7 +448,6 @@ def veo_generate_video(
         "resolution": resolution,
         "seed": seed,
     }
-
 
 # =============================================================================
 # VibeGraphics: GitHub bundle
@@ -627,6 +635,7 @@ def vibe_plan_infographic(
     code_summary = "\n\n".join(code_summary_pieces)
 
     # -------------------------
+     # -------------------------
     # Build the instruction
     # -------------------------
     instruction = f"""
@@ -644,13 +653,40 @@ The project comes from GitHub:
 - URL: {repo_meta.get('url', '')}
 - Branch: {repo_meta.get('branch', '')}
 
-Use the README and code summary to understand:
-- What this project does
-- Why it exists
-- Who it's for
-- What makes it special
+You are given:
+- The full README text.
+- A compact summary of some key code files (if any).
 
-Then design a full VibeGraphic with a cartographer flavor (maps, legends, routes, compass rose, etc.).
+VERY IMPORTANT BEHAVIOR:
+
+1. **Respect the README structure.**
+   - If the README has headings like "Installation", "Usage", "How it works", "Features",
+     or numbered steps (e.g. "1. GitHub → Bundle", "2. Bundle → Spec", "3. Spec → Image", "4. Image → Animation"),
+     then REUSE those names or very close variants as section titles on the map.
+   - Do NOT replace everything with generic names like "The Treasure" or "Exploration" unless they
+     are clearly aligned with a specific README section.
+
+2. **Create a PIPELINE section that mirrors the README steps.**
+   - If the README describes a process or pipeline (for example:
+        1. Fetch repo
+        2. Plan infographic
+        3. Render image
+        4. Animate with Veo
+     ), then include a section that visually shows these steps in order.
+   - Use the SAME wording and ordering as the README wherever possible.
+   - This section should look like a connected route or path on the map with labels like
+     "Step 1: GitHub → Bundle", "Step 2: Bundle → Spec", etc., if the README contains those ideas.
+
+3. **Keep terminology project-specific.**
+   - Preserve important proper nouns from the README: project name ("VibeGraphics"), tool names
+     ("nano banana", "Veo", "Gemini", "MCP", "Gemini CLI", etc.).
+   - Do not replace them with vague words like "our system", "the tool", etc.
+
+4. **Make the graphic strongly tied to the README.**
+   - Every section in the infographic should be clearly traceable back to some part of the README
+     (a heading, a paragraph, or a list).
+   - Use the README content to fill in the copy and labels first; only add new wording if needed
+     to make it flow visually.
 
 Return STRICT JSON with this structure and ONLY this structure:
 
@@ -660,16 +696,16 @@ Return STRICT JSON with this structure and ONLY this structure:
   "sections": [
     {{
       "id": "overview",
-      "title": "Section title",
-      "body": "2–5 short sentences of copy for this section",
+      "title": "Section title (prefer actual README heading or step name)",
+      "body": "2–5 short sentences of copy for this section, closely based on the README text",
       "iconIdea": "Visual motif in the cartographer theme (e.g., compass, map grid, waypoint)",
       "layoutHints": "Where this might sit on the infographic (e.g. top-left, center, bottom strip)"
     }}
   ],
   "callouts": [
     {{
-      "label": "A very short label, like a map legend item",
-      "text": "One short sentence of supporting info",
+      "label": "A very short label, like a map legend item, ideally pulled from README phrasing",
+      "text": "One short sentence of supporting info based on the README",
       "visualMarker": "Small visual symbol, like 'dotted path', 'mountain peak', etc."
     }}
   ],
@@ -679,16 +715,18 @@ Return STRICT JSON with this structure and ONLY this structure:
     "backgroundStyle": "Brief description of background (e.g. aged parchment map, night-sky star chart)",
     "typographyStyle": "Description of font feel (e.g. clean sans-serif with subtle serif headings)"
   }},
-  "imagePrompt": "A detailed text-to-image prompt for generating the static infographic in the chosen theme. Include style, composition, colors, and how sections are arranged.",
-  "animationPrompt": "A detailed prompt for animating this infographic: describe subtle movements, camera motions, transitions between sections, and how to highlight key elements without turning it into a movie.",
-  "voiceoverScript": "A concise voiceover script (60–90 seconds) that walks through the infographic in the same order as the sections."
+  "imagePrompt": "A detailed text-to-image prompt for generating the static infographic in the chosen theme. It MUST clearly mention any important README sections or steps by name, and describe how they are placed on the map.",
+  "animationPrompt": "A detailed prompt for animating this infographic: describe subtle movements, camera motions, transitions between sections, and how to highlight key elements. The animation should follow the same order as the README's main sections or steps.",
+  "voiceoverScript": "A concise voiceover script (60–90 seconds) that walks through the infographic in the same order as the README's main sections or numbered steps."
 }}
 
 Constraints:
-- The imagePrompt should be directly usable by a model like nano banana (Gemini image generation).
+- Prefer using exact section names and step names from the README where possible.
+- The imagePrompt should be directly usable by a model like nano banana.
 - The animationPrompt should be directly usable by a video model like Veo 3, assuming we pass the static infographic as the starting image.
 - Keep JSON reasonably compact; avoid huge blockquotes or long code samples.
 """
+
 
     client = genai.Client(api_key=api_key)
 
