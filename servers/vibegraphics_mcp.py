@@ -832,6 +832,7 @@ def vibe_animate_from_spec(
     aspect_ratio: Optional[str] = None,
     resolution: Optional[str] = None,
     seed: Optional[int] = None,
+    lock_camera: bool = True,
 ) -> Dict[str, Any]:
     """
     Given a VibeGraphic spec JSON and a static infographic image,
@@ -844,8 +845,8 @@ def vibe_animate_from_spec(
     - aspect_ratio: optional aspect ratio, e.g. "16:9" or "9:16".
     - resolution: optional resolution, e.g. "720p" or "1080p".
     - seed: optional seed for slight determinism.
-
-    Uses spec["animationPrompt"] as the prompt.
+    - lock_camera: if True, keep the full poster in frame and only animate
+      elements inside it (no big zooms/pans or scene cuts).
     """
     try:
         with open(os.path.expanduser(spec_path), "r", encoding="utf-8") as f:
@@ -853,9 +854,31 @@ def vibe_animate_from_spec(
     except Exception as e:
         return {"ok": False, "error": f"Failed to read spec: {e}"}
 
-    animation_prompt = spec.get("animationPrompt") or ""
-    if not animation_prompt:
+    base_prompt = spec.get("animationPrompt") or ""
+    if not base_prompt:
         return {"ok": False, "error": "Spec missing 'animationPrompt'"}
+
+    # --- IMPORTANT: constrain Veo to treat this as a flat poster, not a movie ----
+    if lock_camera:
+        constraints = (
+            "\n\nANIMATION CONSTRAINTS (IMPORTANT):\n"
+            "- the idea in not to make a movie, but to animate a single infographic poster.\n"
+            "- Treat the supplied image as a single flat poster / infographic.\n"
+            "- Keep the entire poster visible in frame for the whole clip.\n"
+            "- Do NOT cut to new scenes or generate new backgrounds.\n"
+            "- Avoid large camera moves: no hard pans, no big zoom-ins or zoom-outs.\n"
+            "- If you move the camera at all, keep it extremely subtle "
+            "(gentle 5–10% drift or parallax only).\n"
+            "- All motion must happen INSIDE the existing elements of the poster:\n"
+            "    * soft glow pulses\n"
+            "    * icons gently bobbing or rotating\n"
+            "    * lines drawing themselves in\n"
+            "    * small sparkles or highlights on key areas\n"
+            "- Never crop away edges of the infographic; the user should always see the whole design.\n"
+        )
+        animation_prompt = base_prompt + constraints
+    else:
+        animation_prompt = base_prompt
 
     # Call the internal veo_generate_video helper
     result = veo_generate_video(
@@ -881,7 +904,9 @@ def vibe_animate_from_spec(
         "model": model,
         "spec_path": spec_path,
         "image_path": image_path,
+        "lock_camera": lock_camera,
     }
+
 
 
 # =============================================================================
