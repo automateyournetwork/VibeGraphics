@@ -162,7 +162,12 @@ def _normalize_github_repo(repo_url: str) -> Optional[Tuple[str, str]]:
     return None
 
 
-def _github_api_list_files(owner: str, repo: str, path: str = "") -> List[Dict[str, Any]]:
+def _github_api_list_files(
+    owner: str,
+    repo: str,
+    path: str = "",
+    branch: str = "main",
+) -> List[Dict[str, Any]]:
     """
     Hit GitHub's public contents API for a given path.
     Returns a list of dicts (files/dirs) or [] on error.
@@ -171,9 +176,10 @@ def _github_api_list_files(owner: str, repo: str, path: str = "") -> List[Dict[s
         log.error("requests library not available")
         return []
 
+    path = path.lstrip("/")
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, params={"ref": branch}, timeout=10)
         if resp.status_code != 200:
             log.warning("GitHub API %s returned %s", url, resp.status_code)
             return []
@@ -480,7 +486,7 @@ def vibe_fetch_github(
     # Try to find README.* in root
     # -------------------------
     if include_readme:
-        root_items = _github_api_list_files(owner, repo, "")
+        root_items = _github_api_list_files(owner, repo, "", branch)
         candidates = [f for f in root_items if f.get("type") == "file"]
         readme_candidates = [
             f for f in candidates
@@ -495,39 +501,64 @@ def vibe_fetch_github(
             log.info("No README found at repo root for %s/%s", owner, repo)
 
     # -------------------------
-    # Collect Python files (top-level + src/) up to max_code_files
+    # Collect text/code files recursively up to max_code_files
     # -------------------------
     if include_code and max_code_files > 0:
-        code_dirs = ["", "src"]
-        seen_paths: set[str] = set()
+        TEXT_EXTS = {
+            ".py", ".md", ".txt", ".toml", ".json",
+            ".yml", ".yaml", ".sh", ".cfg", ".ini",
+        }
+        EXCLUDE_DIRS = {".git", ".github", "__pycache__"}
 
-        for d in code_dirs:
-            items = _github_api_list_files(owner, repo, d)
+        seen_paths: set[str] = set()
+        dirs_to_visit: List[str] = [""]
+
+        while dirs_to_visit and len(code_files) < max_code_files:
+            current = dirs_to_visit.pop(0)
+            items = _github_api_list_files(owner, repo, current, branch)
+
             for item in items:
                 if len(code_files) >= max_code_files:
                     break
-                if item.get("type") != "file":
+
+                item_type = item.get("type")
+                item_path = item.get("path", "")
+
+                if item_type == "dir":
+                    # Skip noisy infra dirs
+                    dir_name = item.get("name", "")
+                    if dir_name in EXCLUDE_DIRS:
+                        continue
+                    dirs_to_visit.append(item_path)
                     continue
+
+                if item_type != "file":
+                    continue
+
                 name = item.get("name", "")
-                if not name.endswith(".py"):
+                ext = os.path.splitext(name)[1].lower()
+
+                # Only keep text-ish files
+                if ext not in TEXT_EXTS:
                     continue
-                file_path = item.get("path", name)
-                if file_path in seen_paths:
+
+                if item_path in seen_paths:
                     continue
-                seen_paths.add(file_path)
-                raw_url = _github_raw_url(owner, repo, branch, file_path)
+                seen_paths.add(item_path)
+
+                raw_url = _github_raw_url(owner, repo, branch, item_path)
                 content = _github_fetch_text_file(raw_url, max_chars=max_code_chars_per_file)
                 if not content:
                     continue
+
                 code_files.append(
                     {
-                        "path": file_path,
+                        "path": item_path,
                         "chars": len(content),
                         "snippet": content,
                     }
                 )
-            if len(code_files) >= max_code_files:
-                break
+
 
     # -------------------------
     # Build bundle + save to disk
