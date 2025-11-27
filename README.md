@@ -1,2 +1,6 @@
 # VibeGraphics
 An MCP Server / Gemini CLI Extension to create modern Infographics for your project - VibeGraphics - Generated with Nano Banana and animated with Veo3
+
+## Installation
+
+gemini extensions install https://github.com/automateyournetwork/VibeGraphics.git
