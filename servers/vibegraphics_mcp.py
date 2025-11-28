@@ -664,11 +664,18 @@ def vibe_plan_infographic(
     instruction = f"""
 You are a world-class technical storyteller and infographic designer.
 
-You are designing a *VibeGraphic* — an emotionally-resonant infographic that explains
-a software project as if you were a **cartographer** mapping out an unexplored territory.
+You are designing a *VibeGraphic* — an emotionally-resonant, information-first
+infographic that explains a software project. The layout must read like a clear
+90s/2000s-style infographic: distinct sections or panels, concise text blocks,
+strong labels, and obvious visual hierarchy.
 
 THEME: "{theme}"
 TONE: "{tone}"
+
+The THEME defines the visual "vibe" and decorative styling
+(e.g. cartography, 60s space race, neon cyberpunk, retro terminal, blueprint),
+but it should only FRAME the infographic. The **facts, structure, and wording**
+must be driven by the README and code, not by the theme.
 
 The project comes from GitHub:
 - Owner: {repo_meta.get('owner', '')}
@@ -680,36 +687,45 @@ You are given:
 - The full README text.
 - A compact summary of some key code files (if any).
 
-VERY IMPORTANT BEHAVIOR:
+VERY IMPORTANT BEHAVIOR (LAYOUT + CONTENT):
 
-1. **Respect the README structure.**
-   - If the README has headings like "Installation", "Usage", "How it works", "Features",
-     or numbered steps (e.g. "1. GitHub → Bundle", "2. Bundle → Spec", "3. Spec → Image", "4. Image → Animation"),
-     then REUSE those names or very close variants as section titles on the map.
-   - Do NOT replace everything with generic names like "The Treasure" or "Exploration" unless they
-     are clearly aligned with a specific README section.
+1. **Information-first infographic.**
+   - Think "modern tech infographic", not "loose illustration".
+   - Use clearly separated sections or panels with titles and short bodies.
+   - Prefer boxes, bands, or quadrants with labels over large empty scenery.
+   - The theme (cartography, space, neon, etc.) should appear in icons, borders,
+     backgrounds, and small decorative touches around these panels.
 
-2. **Create a PIPELINE section that mirrors the README steps.**
+2. **Respect the README structure.**
+   - If the README has headings like "Installation", "Usage", "How it works",
+     "Features", or numbered steps (e.g. "1. GitHub → Bundle",
+     "2. Bundle → Spec", "3. Spec → Image", "4. Image → Animation"),
+     then REUSE those names or very close variants as section titles.
+   - Do NOT replace everything with generic names like "The Treasure" or
+     "Exploration" unless they are clearly aligned with a specific README section.
+
+3. **Create a PIPELINE section that mirrors the README steps.**
    - If the README describes a process or pipeline (for example:
         1. Fetch repo
         2. Plan infographic
         3. Render image
         4. Animate with Veo
-     ), then include a section that visually shows these steps in order.
+     ), then represent these as distinct, labeled panels or regions connected
+     in order (e.g. 1→2→3→4).
    - Use the SAME wording and ordering as the README wherever possible.
-   - This section should look like a connected route or path on the map with labels like
-     "Step 1: GitHub → Bundle", "Step 2: Bundle → Spec", etc., if the README contains those ideas.
+   - The connection between steps should be visually indicated (arrows, paths,
+     rhumb lines, flow arrows, etc.), but the steps must remain legible panels.
 
-3. **Keep terminology project-specific.**
-   - Preserve important proper nouns from the README: project name ("VibeGraphics"), tool names
-     ("nano banana", "Veo", "Gemini", "MCP", "Gemini CLI", etc.).
-   - Do not replace them with vague words like "our system", "the tool", etc.
+4. **Keep terminology project-specific.**
+   - Preserve important proper nouns from the README: project name ("VibeGraphics"),
+     tool names ("nano banana", "Veo", "Gemini", "MCP", "Gemini CLI", etc.).
+   - Do not replace them with vague words like "our system" or "the tool".
 
-4. **Make the graphic strongly tied to the README.**
-   - Every section in the infographic should be clearly traceable back to some part of the README
-     (a heading, a paragraph, or a list).
-   - Use the README content to fill in the copy and labels first; only add new wording if needed
-     to make it flow visually.
+5. **Make the graphic strongly tied to the README.**
+   - Every section in the infographic should map back to a README heading,
+     paragraph, or list.
+   - Use README content to fill in the copy and labels first; only add new wording
+     if needed to make it flow visually.
 
 Return STRICT JSON with this structure and ONLY this structure:
 
@@ -721,26 +737,26 @@ Return STRICT JSON with this structure and ONLY this structure:
       "id": "overview",
       "title": "Section title (prefer actual README heading or step name)",
       "body": "2–5 short sentences of copy for this section, closely based on the README text",
-      "iconIdea": "Visual motif in the cartographer theme (e.g., compass, map grid, waypoint)",
-      "layoutHints": "Where this might sit on the infographic (e.g. top-left, center, bottom strip)"
+      "iconIdea": "Visual motif in the CHOSEN THEME (e.g., compass rose, rocket, neon UI widget, blueprint glyph)",
+      "layoutHints": "Where this might sit on the infographic (e.g. top-left panel, central hub, bottom strip)"
     }}
   ],
   "callouts": [
     {{
-      "label": "A very short label, like a map legend item, ideally pulled from README phrasing",
+      "label": "A very short label, like a legend item, ideally pulled from README phrasing",
       "text": "One short sentence of supporting info based on the README",
-      "visualMarker": "Small visual symbol, like 'dotted path', 'mountain peak', etc."
+      "visualMarker": "Small visual symbol in the chosen theme (e.g. map marker, star, neon chip, etc.)"
     }}
   ],
   "palette": {{
     "primaryColors": ["#hex", "#hex"],
     "accentColors": ["#hex", "#hex"],
-    "backgroundStyle": "Brief description of background (e.g. aged parchment map, night-sky star chart)",
-    "typographyStyle": "Description of font feel (e.g. clean sans-serif with subtle serif headings)"
+    "backgroundStyle": "Brief description of background (e.g. aged parchment map, cosmic starfield, neon grid, blueprint paper)",
+    "typographyStyle": "Description of font feel (e.g. clean sans-serif with subtle serif headings, retro pixel, blueprint drafting text)"
   }},
-  "imagePrompt": "A detailed text-to-image prompt for generating the static infographic in the chosen theme. It MUST clearly mention any important README sections or steps by name, and describe how they are placed on the map.",
-  "animationPrompt": "A detailed prompt for animating this infographic: describe subtle movements, camera motions, transitions between sections, and how to highlight key elements. The animation should follow the same order as the README's main sections or steps.",
-  "voiceoverScript": "A concise voiceover script (60–90 seconds) that walks through the infographic in the same order as the README's main sections or numbered steps."
+  "imagePrompt": "A detailed text-to-image prompt for generating the static infographic in the chosen theme. It MUST clearly mention any important README sections or steps by name, and describe them as clearly separated panels, boxes, or regions with titles and short text. The prompt must specify how these panels are arranged (e.g. four panels around a central hub) and how the theme’s decorative elements frame but do not obscure the information.",
+  "animationPrompt": "A detailed prompt for animating THIS SINGLE INFOGRAPHIC POSTER: describe subtle movements, small element motions, and gentle camera behavior across the existing layout. The animation should follow the same order as the README's main sections or steps and must not turn into a separate cinematic scene.",
+  "voiceoverScript": "A concise voiceover script (60–90 seconds) that walks through the infographic panels in the same order as the README's main sections or numbered steps."
 }}
 
 Constraints:
@@ -749,7 +765,6 @@ Constraints:
 - The animationPrompt should be directly usable by a video model like Veo 3, assuming we pass the static infographic as the starting image.
 - Keep JSON reasonably compact; avoid huge blockquotes or long code samples.
 """
-
 
     client = genai.Client(api_key=api_key)
 
